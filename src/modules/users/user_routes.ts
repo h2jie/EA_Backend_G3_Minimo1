@@ -9,6 +9,7 @@ import {
     hideUserHandler,
     loginUserHandler
 } from '../users/user_controller.js';
+import User from './user_models.js';
 
 const router = express.Router();
 
@@ -278,5 +279,171 @@ router.put('/users/:id/oculto', hideUserHandler);
  *         description: Usuario no encontrado o contraseña incorrecta
  */
 router.post('/users/login', loginUserHandler);
+
+
+
+
+/**
+ * @openapi
+ * /api/users/{id}/tags:
+ *   get:
+ *     summary: Obtiene todas las etiquetas de un usuario
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de etiquetas del usuario
+ *       404:
+ *         description: Usuario no encontrado
+ */
+router.get('/users/:id/tags', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+        res.json(user.tags || []);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+      }
+});
+
+/**
+ * @openapi
+ * /api/users/{id}/tags:
+ *   post:
+ *     summary: Añade etiquetas a un usuario
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado con nuevas etiquetas
+ *       404:
+ *         description: Usuario no encontrado
+ */
+router.post('/users/:id/tags', async (req, res) => {
+    try {
+        const { tags } = req.body;
+
+        if (!Array.isArray(tags)) {
+            return res.status(400).json({ message: 'tags debe ser un array de strings' });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        // Asegurar que no hay duplicados
+        const newTags = [...new Set([...user.tags, ...tags])];
+
+        user.tags = newTags;
+        await user.save();
+
+        res.json(user);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+      }
+});
+
+/**
+ * @openapi
+ * /api/users/{id}/tags/{tag}:
+ *   delete:
+ *     summary: Elimina una etiqueta de un usuario
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - name: tag
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado tras eliminar la etiqueta
+ *       404:
+ *         description: Usuario no encontrado
+ */
+
+router.delete('/users/:id/tags/:tag', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        user.tags = user.tags.filter(tag => tag.toString() !== req.params.tag);
+        await user.save();
+
+        res.json(user);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @openapi
+ * /api/users/bytags:
+ *   get:
+ *     summary: Busca usuarios por etiquetas
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - name: tags
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios con la etiqueta especificada
+ */
+router.get('/users/bytags', async (req, res) => {
+    try {
+        const tag = req.query.tags;
+
+        if (!tag) {
+            return res.status(400).json({ message: 'Se requiere al menos una etiqueta' });
+        }
+
+        const users = await User.find({
+            tags: tag,
+            isHidden: false
+        });
+
+        res.json(users);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+      }
+});
 
 export default router;
